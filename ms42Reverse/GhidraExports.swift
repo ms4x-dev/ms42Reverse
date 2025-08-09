@@ -12,9 +12,10 @@ struct GhidraExports: Codable {
         let name: String
         let startAddress: UInt32
         let endAddress: UInt32
+        let dataRefs: [UInt32]?
     }
     let functions: [FunctionInfo]
-    // Optionally add dataRefs or labels as needed
+    let labels: [String: UInt32]?
 
     static func load(from url: URL) throws -> GhidraExports {
         let data = try Data(contentsOf: url)

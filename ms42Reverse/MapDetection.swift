@@ -181,12 +181,22 @@ final class MapDetector {
         if maxV > 15000 { return .ignition } // large numbers usually ignition timing scaled
         if meanV < 50 && maxV < 3000 { return .fuel }
         if axisX != nil && axisX!.first ?? 0 > 1000 { return .maf }
-        // look for function crossrefs (if ghidra available)
+        // Improved Ghidra crossref/label logic
         if let gh = ghidra {
+            // Check if offset is inside any function's dataRefs (if present)
             for f in gh.functions {
-                // if the map address falls in a function's data refs or proximity, mark unknown for now
-                // This is a placeholder — real logic should use dataRefs from Ghidra.
-                if Int(f.startAddress) <= offset && offset <= Int(f.endAddress) { return .unknown }
+                if let dataRefs = f.dataRefs, dataRefs.contains(UInt32(offset)) {
+                    return .unknown
+                }
+                if Int(f.startAddress) <= offset && offset <= Int(f.endAddress) {
+                    return .unknown
+                }
+            }
+            // Check if offset matches any known label address for better naming
+            if let labels = gh.labels {
+                if labels.values.contains(UInt32(offset)) {
+                    return .unknown
+                }
             }
         }
         return .unknown
