@@ -8,10 +8,11 @@
 import SwiftUI
 
 @main
-struct ms42ReverseApp: App {
+struct MS42ReverseApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: AppViewModel())
+                .frame(minWidth: 1000, minHeight: 700)
         }
     }
 }
