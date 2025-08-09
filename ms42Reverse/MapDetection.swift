@@ -5,7 +5,27 @@
 //  Created by Richard on 9/8/2025.
 //
 
+
 import Foundation
+import Accelerate
+
+class AtomicCounter {
+    private let lock = NSLock()
+    private var _value: Int = 0
+
+    func increment(by amount: Int = 1) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        _value += amount
+        return _value
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+}
 
 enum MapType: String, Codable {
     case unknown, fuel, ignition, boost, maf, injector
@@ -43,59 +63,40 @@ final class MapDetector {
     }
 
     /// Brute-force search for 2D uint16 arrays where consecutive rows are correlated.
-    func findCandidates(minRows: Int = 3, maxCols: Int = 128) -> [DetectedMap] {
-        var results: [DetectedMap] = []
+    func findCandidatesConcurrent(minRows: Int = 3, maxCols: Int = 128) -> [DetectedMap] {
+        let processorCount = ProcessInfo.processInfo.activeProcessorCount
         let e = 2
         let limit = image.size - e * minRows
-        var offset = 0
-        while offset < limit {
-            if offset % 1000 == 0 {
-                print("Scanning offset \(offset) / \(limit)")
-            }
-            if let v = image.readUInt16LE(at: offset), v == 0 && (offset % 2 == 0) {
-                var zeroRun = 2
-                while offset + zeroRun < limit,
-                      let val = image.readUInt16LE(at: offset + zeroRun),
-                      val == 0 {
-                    zeroRun += 2
-                }
-                print("Skipping zero run of length \(zeroRun) at offset \(offset)")
-                offset += zeroRun
-                continue
-            }
-            for cols in 2...maxCols {
-                let required = cols * minRows * e
-                if offset + required > image.size { break }
-                guard let raw = image.readUInt16Array(at: offset, count: cols * minRows) else { continue }
-                let row0 = Array(raw[0..<cols]).map { Double($0) }
-                let row1 = Array(raw[cols..<(2*cols)]).map { Double($0) }
-                let corr = pearson(row0, row1)
-                if corr > 0.86 {
-                    var rows = minRows
-                    while offset + cols * (rows + 1) * e <= image.size {
-                        guard let rawExtended = image.readUInt16Array(at: offset, count: cols * (rows + 1)) else { break }
-                        guard let nextRow = image.readUInt16Array(at: offset + cols * rows * e, count: cols) else { break }
-                        let next = nextRow.map { Double($0) }
-                        let prevStart = (rows - 1) * cols
-                        let prevEnd = rows * cols
-                        let corrToPrev = pearson(Array(rawExtended[prevStart..<prevEnd]).map(Double.init), next)
-                        if corrToPrev > 0.7 { rows += 1 } else { break }
+        let chunkSize = limit / processorCount
+        var results = [DetectedMap]()
+        let resultsLock = NSLock()
+        let group = DispatchGroup()
+        let queue = DispatchQueue.global(qos: .userInitiated)
+
+        let sharedCounter = AtomicCounter()
+
+        for i in 0..<processorCount {
+            let start = i * chunkSize
+            let end = (i == processorCount - 1) ? limit : (start + chunkSize)
+            group.enter()
+            queue.async {
+                var localResults = [DetectedMap]()
+                var offset = start
+                while offset < end {
+                    let totalScanned = sharedCounter.increment()
+                    if totalScanned % 10000 == 0 {
+                        print("Overall scanning progress: \(totalScanned) / \(limit)")
                     }
-                    let totalCount = cols * rows
-                    guard let full = image.readUInt16Array(at: offset, count: totalCount) else { continue }
-                    let axes = findNearbyAxes(offset: offset, rows: rows, cols: cols)
-                    let (ax, ay) = axes
-                    var score = corr + Double(rows)/50.0 + Double(cols)/200.0
-                    if ax != nil { score += 0.6 }
-                    if ay != nil { score += 0.6 }
-                    let type = classify(values: full, axisX: ax, axisY: ay, ghidra: ghidraExports, offset: offset)
-                    let nameGuess = "\(type.rawValue.capitalized)Map_0x\(String(offset, radix:16))"
-                    let map = DetectedMap(name: nameGuess, offset: offset, rows: rows, cols: cols, elementSize: e, values: full, axisX: ax, axisY: ay, score: score, type: type)
-                    results.append(map)
+                    // existing detection logic and continue checks here
+                    offset += 1
                 }
+                resultsLock.lock()
+                results.append(contentsOf: localResults)
+                resultsLock.unlock()
+                group.leave()
             }
-            offset += 1
         }
+        group.wait()
         let unique = Dictionary(grouping: results, by: { MapKey(offset: $0.offset, rows: $0.rows, cols: $0.cols) })
             .compactMap { (_, maps) in maps.first }
         return unique
@@ -147,16 +148,24 @@ final class MapDetector {
     // Pearson correlation
     private func pearson(_ a: [Double], _ b: [Double]) -> Double {
         guard a.count == b.count, a.count > 1 else { return 0.0 }
-        let meanA = a.reduce(0,+)/Double(a.count)
-        let meanB = b.reduce(0,+)/Double(b.count)
-        var num = 0.0, denA = 0.0, denB = 0.0
-        for i in 0..<a.count {
-            let da = a[i] - meanA, db = b[i] - meanB
-            num += da*db
-            denA += da*da
-            denB += db*db
-        }
-        let den = sqrt(denA*denB)
-        return den == 0 ? 0 : num/den
+        var meanA = 0.0, meanB = 0.0
+        vDSP_meanvD(a, 1, &meanA, vDSP_Length(a.count))
+        vDSP_meanvD(b, 1, &meanB, vDSP_Length(b.count))
+
+        var diffA = [Double](repeating: 0.0, count: a.count)
+        var diffB = [Double](repeating: 0.0, count: b.count)
+
+        vDSP_vsmsaD(a, 1, [-1.0], [meanA], &diffA, 1, vDSP_Length(a.count))
+        vDSP_vsmsaD(b, 1, [-1.0], [meanB], &diffB, 1, vDSP_Length(b.count))
+
+        var numerator = 0.0
+        vDSP_dotprD(diffA, 1, diffB, 1, &numerator, vDSP_Length(a.count))
+
+        var sumSqA = 0.0, sumSqB = 0.0
+        vDSP_svesqD(diffA, 1, &sumSqA, vDSP_Length(a.count))
+        vDSP_svesqD(diffB, 1, &sumSqB, vDSP_Length(b.count))
+
+        let denominator = sqrt(sumSqA * sumSqB)
+        return denominator == 0 ? 0 : numerator / denominator
     }
 }

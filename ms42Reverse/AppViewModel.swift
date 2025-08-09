@@ -79,7 +79,7 @@ final class AppViewModel: ObservableObject {
         guard let bin = binary else { return }
         let detector = MapDetector(image: bin, ghidraExports: ghidraExports)
         Task {
-            let found = detector.findCandidates(minRows: 3, maxCols: 128)
+            let found = detector.findCandidatesConcurrent(minRows: 3, maxCols: 128)
             DispatchQueue.main.async {
                 self.maps = found.sorted(by: { $0.score > $1.score })
                 self.selectedMapID = self.maps.first?.id
