@@ -19,6 +19,10 @@ struct ContentView: View {
                 Button("Import Ghidra JSON…") { viewModel.importGhidraJSON() }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Import Maps JSON…") { viewModel.importMapsJSON() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
                 Button("Scan for Maps") { viewModel.scanForMaps() }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity, alignment: .leading)

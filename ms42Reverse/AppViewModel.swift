@@ -39,7 +39,27 @@ final class AppViewModel: ObservableObject {
             }
         }
     }
-
+    
+    func importMapsJSON() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] res in
+            guard res == .OK, let url = panel.url, let self = self else { return }
+            do {
+                let data = try Data(contentsOf: url)
+                let decoder = JSONDecoder()
+                let loadedMaps = try decoder.decode([DetectedMap].self, from: data)
+                DispatchQueue.main.async {
+                    self.maps = loadedMaps
+                    self.selectedMapID = self.maps.first?.id
+                }
+            } catch {
+                self.alertError(error)
+            }
+        }
+    }
+    
     func importGhidraJSON() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType.json]
