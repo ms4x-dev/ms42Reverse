@@ -33,7 +33,6 @@ final class AppViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     self?.binary = bin
                     self?.maps = []
-                    self?.scanForMaps()
                 }
             } catch {
                 self?.alertError(error)
@@ -88,14 +87,18 @@ final class AppViewModel: ObservableObject {
     }
 
     func rename(map: DetectedMap, to newName: String) {
-        if let idx = maps.firstIndex(where: { $0.id == map.id }) {
-            maps[idx].name = newName
+        DispatchQueue.main.async {
+            if let idx = self.maps.firstIndex(where: { $0.id == map.id }) {
+                self.maps[idx].name = newName
+            }
         }
     }
 
     func markAccepted(map: DetectedMap) {
-        if let idx = maps.firstIndex(where: { $0.id == map.id }) {
-            maps[idx].accepted.toggle()
+        DispatchQueue.main.async {
+            if let idx = self.maps.firstIndex(where: { $0.id == map.id }) {
+                self.maps[idx].accepted.toggle()
+            }
         }
     }
 
@@ -108,6 +111,23 @@ final class AppViewModel: ObservableObject {
             return
         }
         export(maps: accepted)
+    }
+
+    func exportMapsAsJSON() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "detected_maps.json"
+        panel.begin { [weak self] res in
+            guard res == .OK, let url = panel.url, let self = self else { return }
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = try encoder.encode(self.maps)
+                try data.write(to: url)
+            } catch {
+                self.alertError(error)
+            }
+        }
     }
 
     private func export(maps: [DetectedMap]) {

@@ -31,8 +31,8 @@ enum MapType: String, Codable {
     case unknown, fuel, ignition, boost, maf, injector
 }
 
-struct DetectedMap: Identifiable {
-    let id = UUID()
+struct DetectedMap: Identifiable, Codable {
+    let id: UUID
     var name: String
     let offset: Int
     let rows: Int
@@ -43,7 +43,22 @@ struct DetectedMap: Identifiable {
     var axisY: [Double]?
     var score: Double
     var type: MapType
-    var accepted: Bool = false
+    var accepted: Bool
+
+    init(name: String, offset: Int, rows: Int, cols: Int, elementSize: Int, values: [UInt16], axisX: [Double]? = nil, axisY: [Double]? = nil, score: Double, type: MapType, accepted: Bool = false) {
+        self.id = UUID()
+        self.name = name
+        self.offset = offset
+        self.rows = rows
+        self.cols = cols
+        self.elementSize = elementSize
+        self.values = values
+        self.axisX = axisX
+        self.axisY = axisY
+        self.score = score
+        self.type = type
+        self.accepted = accepted
+    }
 }
 
 struct MapKey: Hashable {
@@ -87,7 +102,39 @@ final class MapDetector {
                     if totalScanned % 10000 == 0 {
                         print("Overall scanning progress: \(totalScanned) / \(limit)")
                     }
-                    // existing detection logic and continue checks here
+                    // Example detection logic:
+                    // Try all possible row/col combos at this offset
+                    for cols in 2...maxCols {
+                        let tableBytes = cols * minRows * 2
+                        if offset + tableBytes > end { break }
+                        // Try to read a table of (minRows x cols) uint16s
+                        guard let arr = self.image.readUInt16Array(at: offset, count: cols * minRows) else { continue }
+                        // Simple heuristic: check if rows are correlated
+                        var correlated = true
+                        for r in 0..<(minRows-1) {
+                            let rowA = Array(arr[r*cols..<(r+1)*cols]).map(Double.init)
+                            let rowB = Array(arr[(r+1)*cols..<(r+2)*cols]).map(Double.init)
+                            let corr = self.pearson(rowA, rowB)
+                            if abs(corr) < 0.85 { correlated = false; break }
+                        }
+                        if correlated {
+                            let (ax, ay) = self.findNearbyAxes(offset: offset, rows: minRows, cols: cols)
+                            let typ = self.classify(values: arr, axisX: ax, axisY: ay, ghidra: self.ghidraExports, offset: offset)
+                            let map = DetectedMap(
+                                name: "AutoDetect",
+                                offset: offset,
+                                rows: minRows,
+                                cols: cols,
+                                elementSize: 2,
+                                values: arr,
+                                axisX: ax,
+                                axisY: ay,
+                                score: 1.0,
+                                type: typ
+                            )
+                            localResults.append(map)
+                        }
+                    }
                     offset += 1
                 }
                 resultsLock.lock()

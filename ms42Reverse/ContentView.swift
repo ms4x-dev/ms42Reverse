@@ -12,15 +12,25 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            VStack(alignment: .leading) {
-                HStack {
-                    Button("Open Binary…") { viewModel.openBinary() }
-                    Button("Import Ghidra JSON…") { viewModel.importGhidraJSON() }
-                    Button("Scan for Maps") { viewModel.scanForMaps() }
-                    Spacer()
-                    Button("Export XDF") { viewModel.exportXdf() }.disabled(viewModel.maps.isEmpty)
-                }
-                .padding(.vertical, 6)
+            VStack(alignment: .leading, spacing: 8) {
+                Button("Open Binary…") { viewModel.openBinary() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Import Ghidra JSON…") { viewModel.importGhidraJSON() }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Scan for Maps") { viewModel.scanForMaps() }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Export Maps JSON") { viewModel.exportMapsAsJSON() }
+                    .disabled(viewModel.maps.isEmpty)
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Export XDF") { viewModel.exportXdf() }
+                    .disabled(viewModel.maps.isEmpty)
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
 
                 List(selection: $viewModel.selectedMapID) {
                     ForEach(viewModel.maps) { m in
