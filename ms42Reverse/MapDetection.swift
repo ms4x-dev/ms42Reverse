@@ -44,6 +44,12 @@ struct DetectedMap: Identifiable, Codable {
     var type: MapType
     var accepted: Bool
 
+    // Enhanced metadata populated from known map templates
+    var datatype: String? // original XDF datatype
+    var decimalPlaces: Int?
+    var units: String?
+    var rawEmbeddedXML: String?
+
     init(name: String, offset: Int, rows: Int, cols: Int, elementSize: Int, values: [UInt16], axisX: [Double]? = nil, axisY: [Double]? = nil, score: Double, type: MapType, accepted: Bool = false) {
         self.id = UUID()
         self.name = name
@@ -70,11 +76,16 @@ struct MapKey: Hashable {
 final class MapDetector {
     let image: BinaryImage
     let ghidraExports: GhidraExports?
+    let knownMapsLoader: KnownMapsLoader = KnownMapsLoader()
 
     init(image: BinaryImage, ghidraExports: GhidraExports? = nil) {
         self.image = image
         self.ghidraExports = ghidraExports
+        
+        // Attempt to load known map templates from bundled JSON
+        knownMapsLoader.tryLoadBundled()
     }
+
 
     /// Brute-force search for 2D uint16 arrays where consecutive rows are correlated.
     ///

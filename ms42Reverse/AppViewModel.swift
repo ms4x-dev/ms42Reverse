@@ -10,6 +10,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 final class AppViewModel: ObservableObject {
+    let knownMapsLoader: KnownMapsLoader = KnownMapsLoader()
+
     @Published private(set) var binary: BinaryImage?
     @Published var maps: [DetectedMap] = []
     @Published var selectedMapID: UUID?
