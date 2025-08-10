@@ -123,7 +123,6 @@ final class AppViewModel: ObservableObject {
     }
 
     func exportXdf() {
-        let xdfGen = XDFGenerator()
         let accepted = maps.filter { $0.accepted }
         guard !accepted.isEmpty else {
             // export all if none accepted

@@ -107,14 +107,13 @@ final class MapDetector {
         for i in 0..<processorCount {
             let start = i * chunkSize
             // add overlap except for first chunk; clamp end to limit
-            var end = (i == processorCount - 1) ? limit : min(limit, start + chunkSize + overlap)
-            // ensure end > start
-            if end <= start { end = start + 1 }
+            let rawEnd = (i == processorCount - 1) ? limit : min(limit, start + chunkSize + overlap)
+            let safeEnd = (rawEnd <= start) ? start + 1 : rawEnd
             group.enter()
             queue.async {
                 var localResults = [DetectedMap]()
                 var offset = start
-                while offset < end {
+                while offset < safeEnd {
                     let totalScanned = sharedCounter.increment()
                     if totalScanned % 10000 == 0 {
                         print("Overall scanning progress: \(totalScanned) / \(limit)")
