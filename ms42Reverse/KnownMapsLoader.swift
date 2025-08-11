@@ -45,7 +45,7 @@ public final class KnownMapsLoader {
     // Convenience: try to load the bundled file name from the app bundle path or file-system path
     public func tryLoadBundled(named filename: String = "known_maps_from_original_xdf.json") {
         // First, try bundle
-        if let bundleUrl = Bundle.main.url(forResource: filename.replacingOccurrences(of: ".json",with: ""), withExtension: "json") {
+        if let bundleUrl = Bundle.main.url(forResource: filename.replacingOccurrences(of: ".json", with: ""), withExtension: "json") {
             do {
                 try load(from: bundleUrl)
                 return

@@ -79,12 +79,10 @@ final class MapDetector {
     let knownMapsLoader: KnownMapsLoader = KnownMapsLoader()
 
     init(image: BinaryImage, ghidraExports: GhidraExports? = nil) {
-        self.image = image
-        self.ghidraExports = ghidraExports
-        
-        // Attempt to load known map templates from bundled JSON
-        knownMapsLoader.tryLoadBundled()
-    }
+            self.image = image
+            self.ghidraExports = ghidraExports
+            knownMapsLoader.tryLoadBundled()  // loads known_maps_from_original_xdf.json from bundle
+        }
 
 
     /// Brute-force search for 2D uint16 arrays where consecutive rows are correlated.
